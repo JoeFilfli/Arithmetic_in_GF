@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Polynomial Arithmetic in GF(2^m)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #e0f7fa, #ffffff);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background-color: #007bff;
+        }
+
+        .navbar-brand {
+            color: #fff !important;
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #005b9f;
+            font-weight: 700;
+            margin-bottom: 30px;
+        }
+
+        .instructions {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            margin-top: 20px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('welcome') }}">Polynomial Arithmetic</a>
+        </div>
+    </nav>
+
+    <div class="main-content container">
+        <h1>Polynomial Arithmetic in GF(2^m)</h1>
+        
+        <form method="post" class="mb-4 p-4 bg-white rounded shadow-sm">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label for="degree" class="form-label">Select Degree m</label>
+                    <select name="degree" id="degree" class="form-select">
+                        {% for d in degrees %}
+                            <option value="{{ d }}" {% if d == selected_degree %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <p class="mb-1 fw-bold">Output Format</p>
+                    {% for f in formats %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="format" id="format-{{f}}" value="{{f}}" 
+                            {% if f == selected_format %}checked{% endif %}>
+                            <label class="form-check-label" for="format-{{f}}">{{f}}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="instructions">
+                <strong>Instructions:</strong>
+                <p class="mb-0">For Binary: e.g., 1011</p>
+                <p class="mb-0">For Hex: e.g., 0x1b or 1b</p>
+            </div>
+
+            <div class="mb-3">
+                <label for="poly_a" class="form-label fw-bold">Polynomial A</label>
+                <input type="text" class="form-control" name="poly_a" id="poly_a" value="{{ poly_a }}">
+            </div>
+            <div class="mb-3">
+                <label for="poly_b" class="form-label fw-bold">Polynomial B</label>
+                <input type="text" class="form-control" name="poly_b" id="poly_b" value="{{ poly_b }}" 
+                {% if selected_operation == "Inverse" or selected_operation == "Modulo Reduction" %}disabled{% endif %}>
+            </div>
+
+            <div class="mb-3">
+                <p class="mb-1 fw-bold">Select Operation</p>
+                {% for op in operations %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="operation" id="op-{{op}}" value="{{op}}" 
+                        {% if op == selected_operation %}checked{% endif %} 
+                        onclick="togglePolyB(this.value)">
+                        <label class="form-check-label" for="op-{{op}}">{{op}}</label>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="btn btn-success">Compute</button>
+        </form>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="card mt-4">
+            <div class="card-header bg-primary text-white">
+                {{ result.title }}
+            </div>
+            <div class="card-body">
+                {% if result.title == "Division Result" %}
+                    <p><strong>Quotient ({{result.format}}):</strong> {{ result.quotient_str }}</p>
+                    <p><strong>Quotient Polynomial:</strong> {{ result.quotient_poly_str }}</p>
+                    <p><strong>Remainder ({{result.format}}):</strong> {{ result.remainder_str }}</p>
+                    <p><strong>Remainder Polynomial:</strong> {{ result.remainder_poly_str }}</p>
+                {% else %}
+                    <p><strong>{{ result.title }} ({{result.format}}):</strong> {{ result.res_str }}</p>
+                    <p><strong>Polynomial:</strong> {{ result.poly_str }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Add the Explain button -->
+        <form action="{{ url_for('explain') }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-info mt-3">Explain</button>
+        </form>
+        {% endif %}
+
+        {% if explanation %}
+        <div class="card mt-4 bg-light">
+            <div class="card-header bg-info text-white">
+                Explanation
+            </div>
+            <div class="card-body">
+                <pre>{{ explanation }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <footer>
+        &copy; 2023 Polynomial Arithmetic. All rights reserved.
+    </footer>
+
+<script>
+    function togglePolyB(operation) {
+        const polyBInput = document.getElementById('poly_b');
+        if (operation === 'Inverse' || operation === 'Modulo Reduction') {
+            polyBInput.disabled = true;
+            polyBInput.value = '';
+        } else {
+            polyBInput.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>
