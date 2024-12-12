@@ -13,5 +13,5 @@ The following operations are supported:
 4. **Subtraction**
 5. **Multiplication**
 6. **Division**
-7. **Ai integration to help the user understand the output**
+7. **AI integration to help the user understand the output**
 ---
