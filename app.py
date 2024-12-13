@@ -3,11 +3,12 @@ from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
 import tkinter as tk
 
+
 class PolynomialArithmeticApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Polynomial Arithmetic in GF(2^m)")
-        self.root.geometry("900x600")  # Make the window larger
+        self.root.geometry("900x600") 
         self.root.resizable(True, True)
 
         # Set up ttkbootstrap style
@@ -19,6 +20,15 @@ class PolynomialArithmeticApp:
         self.style.configure('Custom.TEntry', font=('Helvetica', 12))
         self.style.configure('Custom.TButton', font=('Helvetica', 12))
         self.style.configure('Custom.TLabelframe.Label', font=('Helvetica', 12, 'bold'))
+
+        # Define a custom style for disabled Entry widgets
+        self.style.configure('Custom.TEntry',
+                             fieldbackground='white',
+                             foreground='black')
+
+        self.style.map('Custom.TEntry',
+                       fieldbackground=[('disabled', 'lightgray')],
+                       foreground=[('disabled', 'gray')])              
 
         # Initialize irreducible polynomials up to degree 8
         self.irreducible_polynomials = {
@@ -87,11 +97,11 @@ class PolynomialArithmeticApp:
         input_frame.columnconfigure(1, weight=1)
 
         ttk.Label(input_frame, text="Polynomial A:", style='Custom.TLabel').grid(row=0, column=0, padx=10, pady=10, sticky="e")
-        self.poly_a_entry = ttk.Entry(input_frame, width=50, font=('Helvetica', 12))
+        self.poly_a_entry = ttk.Entry(input_frame, width=50, font=('Helvetica', 12), style='Custom.TEntry')
         self.poly_a_entry.grid(row=0, column=1, padx=10, pady=10, sticky='ew')
         
         ttk.Label(input_frame, text="Polynomial B:", style='Custom.TLabel').grid(row=1, column=0, padx=10, pady=10, sticky="e")
-        self.poly_b_entry = tk.Entry(input_frame, width=50, font=('Helvetica', 12))
+        self.poly_b_entry = ttk.Entry(input_frame, width=50, font=('Helvetica', 12), style='Custom.TEntry')
         self.poly_b_entry.grid(row=1, column=1, padx=10, pady=10, sticky='ew')
         
         operation_frame = ttk.Labelframe(main_frame, text="Select Operation", padding=20, style='Custom.TLabelframe')
@@ -127,9 +137,9 @@ class PolynomialArithmeticApp:
         operation = self.operation_var.get()
         if operation in ["Inverse", "Modulo Reduction"]:
             self.poly_b_entry.delete(0, tk.END)
-            self.poly_b_entry.config(state='disabled', disabledbackground='lightgray')
+            self.poly_b_entry.config(state='disabled')
         else:
-            self.poly_b_entry.config(state='normal', background='white')
+            self.poly_b_entry.config(state='normal')
 
     def parse_polynomial(self, poly_str):
         input_format = self.format_var.get()
@@ -204,7 +214,7 @@ class PolynomialArithmeticApp:
 
         if operation in ["Addition", "Subtraction"]:
             # In GF(2^m), addition = subtraction = XOR
-            result = a ^ b
+            result = self.gf2n_poly_add(a, b)
             self.display_result(result)
         elif operation == "Multiplication":
             result = self.polynomial_multiply(a, b, poly_mod, m)
@@ -215,7 +225,7 @@ class PolynomialArithmeticApp:
                 return
             # Division in GF(2^m) = a * inverse(b) mod poly
             try:
-                inverse_b = self.polynomial_inverse(b, poly_mod)
+                inverse_b = self.polynomial_inverse(b, poly_mod, m)
                 quotient = self.polynomial_multiply(a, inverse_b, poly_mod, m)
                 # In a field, remainder is always 0 when dividing by a nonzero element
                 self.display_division_result(quotient, 0)
@@ -226,7 +236,7 @@ class PolynomialArithmeticApp:
             self.display_result(result, prefix="Modulo Reduction Result")
         elif operation == "Inverse":
             try:
-                inverse = self.polynomial_inverse(a, poly_mod)
+                inverse = self.polynomial_inverse(a, poly_mod, m)
                 result = self.polynomial_mod(inverse, poly_mod)
                 self.display_result(result, prefix="Inverse")
             except Exception as e:
@@ -257,14 +267,13 @@ class PolynomialArithmeticApp:
 
     def polynomial_multiply(self, a, b, mod_poly, m):
         result = 0
-        for i in range(m):
+        while b:
             if b & 1:
                 result ^= a
-            hi_bit_set = a & (1 << (m - 1))
-            a <<= 1
-            if hi_bit_set:
-                a ^= mod_poly
             b >>= 1
+            a <<= 1
+            if a & (1 << m):
+                a ^= mod_poly
         return result & ((1 << m) - 1)
 
     def polynomial_mod(self, poly, mod_poly):
@@ -278,16 +287,52 @@ class PolynomialArithmeticApp:
 
         return poly
 
-    def polynomial_inverse(self, a, mod_poly):
-        if a == 0:
-            raise ValueError("Zero has no multiplicative inverse.")
-        m = self.degree_var.get()
-        field_size = 1 << m  # 2^m
+    # Helper functions for Extended Euclidean Algorithm
+    def gf2n_poly_add(self, a, b):
+        return a ^ b
 
-        for i in range(1, field_size):
-            if self.polynomial_multiply(a, i, mod_poly, m) == 1:
-                return i
-        raise ValueError("No multiplicative inverse found.")
+    def gf2n_poly_mul(self, a, b):
+        result = 0
+        while b:
+            if b & 1:
+                result ^= a
+            a <<= 1
+            b >>= 1
+        return result
+
+    def gf2n_poly_divmod(self, a, b):
+        if b == 0:
+            raise ZeroDivisionError("Polynomial division by zero.")
+        quotient = 0
+        remainder = a
+        deg_b = b.bit_length() - 1
+        while remainder.bit_length() >= b.bit_length():
+            shift = remainder.bit_length() - b.bit_length()
+            quotient ^= (1 << shift)
+            remainder ^= b << shift
+        return quotient, remainder
+
+    def gf2n_extended_gcd(self, a, b):
+        x0, x1 = 1, 0
+        y0, y1 = 0, 1
+        while b != 0:
+            q, r = self.gf2n_poly_divmod(a, b)
+            a, b = b, r
+            x0, x1 = x1, self.gf2n_poly_add(x0, self.gf2n_poly_mul(q, x1))
+            y0, y1 = y1, self.gf2n_poly_add(y0, self.gf2n_poly_mul(q, y1))
+        return a, x0, y0  # gcd, x, y
+
+    def gf2n_modinv(self, a, modulus):
+        gcd, x, _ = self.gf2n_extended_gcd(a, modulus)
+        if gcd != 1:
+            raise ValueError("No inverse exists for the given polynomial modulo modulus over GF(2^n)")
+        # Reduce x modulo the modulus polynomial
+        inverse = self.polynomial_mod(x, modulus)
+        return inverse
+
+    def polynomial_inverse(self, a, mod_poly, m):
+        return self.gf2n_modinv(a, mod_poly)
+
 
 if __name__ == "__main__":
     root = ttk.Window(themename="cosmo")

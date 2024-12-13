@@ -4,10 +4,10 @@ import os
 import openai
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_here"  # Replace with a secure key in production
+app.secret_key = "secret_key"  
 
-# Set your OpenAI API key (either from environment or directly)
-openai.api_key = ""
+# Set your OpenAI API 
+openai.api_key = "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"
 
 # Irreducible polynomials up to degree 8
 IRREDUCIBLE_POLYNOMIALS = {
@@ -20,9 +20,52 @@ IRREDUCIBLE_POLYNOMIALS = {
     8: 0b100011011,    # x^8 + x^4 + x^3 + x + 1
 }
 
-@app.route("/")
-def welcome():
-    return render_template("welcome.html")
+def gf2_poly_add(a, b):
+    return a ^ b
+
+def gf2_poly_mul(a, b):
+    result = 0
+    while b:
+        if b & 1:
+            result ^= a
+        a <<= 1
+        b >>= 1
+    return result
+
+def gf2_poly_divmod(a, b):
+    if b == 0:
+        raise ZeroDivisionError("Polynomial division by zero.")
+    quotient = 0
+    remainder = a
+    deg_b = b.bit_length() - 1
+    while remainder.bit_length() >= b.bit_length():
+        shift = remainder.bit_length() - b.bit_length()
+        quotient ^= (1 << shift)
+        remainder ^= b << shift
+    return quotient, remainder
+
+def gf2_extended_gcd(a, b):
+    x0, x1 = 1, 0
+    y0, y1 = 0, 1
+    while b != 0:
+        q, r = gf2_poly_divmod(a, b)
+        a, b = b, r
+        x0, x1 = x1, gf2_poly_add(x0, gf2_poly_mul(q, x1))
+        y0, y1 = y1, gf2_poly_add(y0, gf2_poly_mul(q, y1))
+    return a, x0, y0  # gcd, x, y
+
+def gf2_poly_mod(a, modulus):
+    _, remainder = gf2_poly_divmod(a, modulus)
+    return remainder
+
+def polynomial_inverse(a, mod_poly, m):
+    if a == 0:
+        raise ValueError("Zero has no multiplicative inverse.")
+    gcd, x, _ = gf2_extended_gcd(a, mod_poly)
+    if gcd != 1:
+        raise ValueError("No multiplicative inverse exists for the given polynomial modulo the modulus polynomial.")
+    inverse = gf2_poly_mod(x, mod_poly)
+    return inverse
 
 def parse_polynomial(poly_str, input_format):
     poly_str = poly_str.strip().lower()
@@ -32,7 +75,6 @@ def parse_polynomial(poly_str, input_format):
         if input_format == "Binary":
             return int(poly_str, 2)
         else:
-            # Hex format
             if not poly_str.startswith("0x"):
                 poly_str = "0x" + poly_str
             return int(poly_str, 16)
@@ -62,36 +104,27 @@ def polynomial_to_string(poly):
 
 def polynomial_multiply(a, b, mod_poly, m):
     result = 0
-    for i in range(m):
+    while b:
         if b & 1:
             result ^= a
-        hi_bit_set = a & (1 << (m - 1))
-        a <<= 1
-        if hi_bit_set:
-            a ^= mod_poly
         b >>= 1
+        a <<= 1
+        if a & (1 << m):
+            a ^= mod_poly
     return result & ((1 << m) - 1)
 
 def polynomial_mod(poly, mod_poly):
     poly_degree = poly.bit_length() - 1
     mod_degree = mod_poly.bit_length() - 1
-
     while poly_degree >= mod_degree:
         shift = poly_degree - mod_degree
         poly ^= mod_poly << shift
         poly_degree = poly.bit_length() - 1
-
     return poly
 
-def polynomial_inverse(a, mod_poly, m):
-    if a == 0:
-        raise ValueError("Zero has no multiplicative inverse.")
-    field_size = 1 << m  # 2^m
-
-    for i in range(1, field_size):
-        if polynomial_multiply(a, i, mod_poly, m) == 1:
-            return i
-    raise ValueError("No multiplicative inverse found.")
+@app.route("/")
+def welcome():
+    return render_template("welcome.html")
 
 @app.route("/index", methods=["GET", "POST"])
 def index():
@@ -101,7 +134,7 @@ def index():
 
     result = None
     error = None
-    explanation = session.pop('explanation', None)  # Retrieve any stored explanation
+    explanation = session.pop('explanation', None)
     selected_degree = degrees[0]
     selected_format = formats[0]
     selected_operation = operations[0]
@@ -119,12 +152,10 @@ def index():
             m = selected_degree
             poly_mod = IRREDUCIBLE_POLYNOMIALS[m]
 
-            # Parse polynomial A if needed
             if not poly_a:
                 raise ValueError("Polynomial A is required.")
             a = parse_polynomial(poly_a, selected_format)
 
-            # For operations that need B
             if selected_operation not in ["Inverse", "Modulo Reduction"]:
                 if not poly_b:
                     raise ValueError("Polynomial B is required for this operation.")
@@ -132,9 +163,8 @@ def index():
             else:
                 b = None
 
-            # Perform computation
             if selected_operation in ["Addition", "Subtraction"]:
-                res_int = a ^ b
+                res_int = gf2_poly_add(a, b)
                 res_str = format_polynomial(res_int, selected_format)
                 poly_str = polynomial_to_string(res_int)
                 result = {
@@ -200,7 +230,6 @@ def index():
             else:
                 raise ValueError("Invalid operation selected.")
 
-            # Store operation details in session for explanation
             if result:
                 session['last_operation'] = {
                     'degree': selected_degree,
@@ -235,7 +264,6 @@ def explain():
     if not operation_details:
         return "No operation to explain.", 400
 
-    # Construct the prompt for explanation
     prompt = f"""
 Explain step-by-step the polynomial arithmetic operation performed.
 
@@ -253,7 +281,6 @@ Details:
 - Provide a clear, human-readable explanation.
 """
 
-    # Use ChatCompletion with GPT-4
     response = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
