@@ -226,7 +226,6 @@ polynomial-arithmetic-gf2m/
 ├── requirements.txt       # Dependencies
 ├── static/                # Static files (CSS, JS, etc.)
 ├── templates/             # HTML templates for the web application
-├── utils/                 # Utility modules for polynomial operations
 └── README.md              # Project documentation
 ```
 
