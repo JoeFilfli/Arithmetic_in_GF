@@ -44,6 +44,7 @@ The application supports the following operations in **GF(2^m)**:
 
 - **Python 3.6+**: Ensure Python is installed on your system. You can download it from [Python's official website](https://www.python.org/downloads/).
 - **Virtual Environment (Recommended)**: It's advisable to use a virtual environment to manage dependencies.
+- **OpenAI SecretKey : having GPT-4 subscription **
 
 ---
 
