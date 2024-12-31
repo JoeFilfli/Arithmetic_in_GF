@@ -7,7 +7,7 @@ app = Flask(__name__)
 app.secret_key = "secret_key"  
 
 # Set your OpenAI API 
-openai.api_key = "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"
+openai.api_key = "PUT_YOUR_KEY_HERE"
 
 # Irreducible polynomials up to degree 8
 IRREDUCIBLE_POLYNOMIALS = {
